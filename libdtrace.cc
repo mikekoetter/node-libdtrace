@@ -147,7 +147,7 @@ private:
 	static Nan::Persistent<FunctionTemplate> dtc_templ;
 	const Nan::FunctionCallbackInfo<v8::Value> *dtc_args;
 	Local<Function> dtc_callback;
-	Handle<Value> dtc_error;
+	v8::Local<v8::Value> dtc_error;
 	Local<Array> *dtc_ranges;
 	dtrace_aggvarid_t dtc_ranges_varid;
 
