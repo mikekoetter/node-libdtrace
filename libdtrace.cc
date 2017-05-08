@@ -111,8 +111,8 @@ protected:
 	DTraceConsumer();
 	~DTraceConsumer();
 
-	Handle<Value> error(const char *fmt, ...);
-	Handle<Value> badarg(const char *msg);
+	v8::Local<v8::Value> error(const char *fmt, ...);
+	v8::Local<v8::Value> badarg(const char *msg);
 	boolean_t valid(const dtrace_recdesc_t *);
 	const char *action(const dtrace_recdesc_t *, char *, int);
 	v8::Local<v8::Value>   record(const dtrace_recdesc_t *, caddr_t);
@@ -257,7 +257,7 @@ DTraceConsumer::action(const dtrace_recdesc_t *rec, char *buf, int size)
 	return (buf);
 }
 
-Handle<Value>
+v8::Local<v8::Value>
 DTraceConsumer::error(const char *fmt, ...)
 {
 	char buf[1024], buf2[1024];
@@ -278,13 +278,13 @@ DTraceConsumer::error(const char *fmt, ...)
 		buf[strlen(buf) - 1] = '\0';
 	}
 	
-	Nan::ThrowError(Nan::New<v8::String>(err).ToLocalChecked());
+	return Nan::Error(err);
 }
 
-Handle<Value>
+v8::Local<v8::Value>
 DTraceConsumer::badarg(const char *msg)
 {
-	Nan::ThrowTypeError(Nan::New<v8::String>(msg).ToLocalChecked());
+	return Nan::TypeError(msg);
 }
 
 boolean_t
@@ -384,23 +384,22 @@ NAN_METHOD (DTraceConsumer::Strcompile) {
 	dtrace_proginfo_t dinfo;
 
 	if (info.Length() < 1 || !info[0]->IsString()){
-		// return (dtc->badarg("expected program"));
+		Nan::ThrowError(dtc->badarg("expected program"));
+	}else{
+
+		String::Utf8Value program(info[0]->ToString());
+
+		if ((dp = dtrace_program_strcompile(dtp, *program,
+		    DTRACE_PROBESPEC_NAME, 0, 0, NULL)) == NULL) {
+			Nan::ThrowError(dtc->error("couldn't compile '%s': %s\n", *program,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		} else if (dtrace_program_exec(dtp, dp, &dinfo) == -1) {
+			Nan::ThrowError(dtc->error("couldn't execute '%s': %s\n", *program,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
+		}
 	}
-
-	String::Utf8Value program(info[0]->ToString());
-
-	if ((dp = dtrace_program_strcompile(dtp, *program,
-	    DTRACE_PROBESPEC_NAME, 0, 0, NULL)) == NULL) {
-		// return (dtc->error("couldn't compile '%s': %s\n", *program,
-		    // dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	if (dtrace_program_exec(dtp, dp, &dinfo) == -1) {
-		// return (dtc->error("couldn't execute '%s': %s\n", *program,
-		    // dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-    info.GetReturnValue().Set(Nan::Undefined());
 }
 
 
@@ -412,45 +411,43 @@ NAN_METHOD (DTraceConsumer::Setopt) {
 	int rval;
 
 	if (info.Length() < 1 || !info[0]->IsString()){
-		// return (dtc->badarg("expected an option to set"));
-		return;
-	}
+		Nan::ThrowError(dtc->badarg("expected an option to set"));
+	}else{
+		String::Utf8Value option(info[0]->ToString());
 
-	String::Utf8Value option(info[0]->ToString());
-
-	if (info.Length() >= 2) {
-		if (info[1]->IsArray()){
-			// return (dtc->badarg("option value can't be an array"));
+		if (info.Length() >= 2) {
+			if (info[1]->IsArray()){
+				Nan::ThrowError(dtc->badarg("option value can't be an array"));
+			}else if (info[1]->IsObject()){
+				Nan::ThrowError(dtc->badarg("option value can't be an object"));
+			}else{
+				String::Utf8Value optval(info[1]->ToString());
+				rval = dtrace_setopt(dtp, *option, *optval);
+			}
+		} else {
+			rval = dtrace_setopt(dtp, *option, NULL);
 		}
 
-		if (info[1]->IsObject()){
-			// return (dtc->badarg("option value can't be an object"));
+		if (rval != 0) {
+			Nan::ThrowError(dtc->error("couldn't set option '%s': %s\n", *option,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
 		}
-
-		String::Utf8Value optval(info[1]->ToString());
-		rval = dtrace_setopt(dtp, *option, *optval);
-	} else {
-		rval = dtrace_setopt(dtp, *option, NULL);
 	}
-
-	if (rval != 0) {
-		// return (dtc->error("couldn't set option '%s': %s\n", *option,
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-    info.GetReturnValue().Set(Nan::Undefined());
 }
 
 NAN_METHOD (DTraceConsumer::Go) {
 	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
-	if (dtrace_go(dtp) == -1) {
-		// return (dtc->error("couldn't enable tracing: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	if (dtrace_go(dtp) == -1){
+		Nan::ThrowError(dtc->error("couldn't enable tracing: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+    	info.GetReturnValue().Set(Nan::Undefined());
 	}
-
-    info.GetReturnValue().Set(Nan::Undefined());
+	
 }
 
 NAN_METHOD (DTraceConsumer::Stop) {
@@ -458,11 +455,13 @@ NAN_METHOD (DTraceConsumer::Stop) {
 	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
-	if (dtrace_stop(dtp) == -1) { // what do I return
-		// return (dtc->error("couldn't disable tracing: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	if (dtrace_stop(dtp) == -1) {
+		Nan::ThrowError(dtc->error("couldn't disable tracing: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+    	info.GetReturnValue().Set(Nan::Undefined());		
 	}
-    info.GetReturnValue().Set(Nan::Undefined());
+	
 }
 
 v8::Local<v8::Object> 
@@ -547,21 +546,20 @@ NAN_METHOD (DTraceConsumer::Consume) {
 	dtrace_workstatus_t status;
 
 	if (!info[0]->IsFunction()){
-		// return (dtc->badarg("expected function as argument"));
-		// Nan::ThrowError()
+		Nan::ThrowError(dtc->badarg("expected function as argument"));
+	}else{
+		dtc->dtc_callback = Local<Function>::Cast(info[0]);
+		dtc->dtc_args = &info;
+		dtc->dtc_error = Nan::Null();
+
+		status = dtrace_work(dtp, NULL, NULL, DTraceConsumer::consume, dtc);
+
+		if (status == -1 && !dtc->dtc_error->IsNull()){
+			Nan::ThrowError(dtc->dtc_error);
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
+		}
 	}
-
-	dtc->dtc_callback = Local<Function>::Cast(info[0]);
-	dtc->dtc_args = &info;
-	dtc->dtc_error = Nan::Null();
-
-	status = dtrace_work(dtp, NULL, NULL, DTraceConsumer::consume, dtc);
-
-	if (status == -1 && !dtc->dtc_error->IsNull()){
-		// return (dtc->dtc_error);
-	}
-
-    info.GetReturnValue().Set(Nan::Undefined());
 }
 
 /*
@@ -848,12 +846,12 @@ NAN_METHOD (DTraceConsumer::Aggclear) {
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
 	if (dtrace_status(dtp) == -1) {
-		// return (dtc->error("couldn't get status: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	dtrace_aggregate_clear(dtp);
-    info.GetReturnValue().Set(Nan::Undefined());
+		Nan::ThrowError(dtc->error("couldn't get status: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+		dtrace_aggregate_clear(dtp);
+    	info.GetReturnValue().Set(Nan::Undefined());
+    }
 }
 
 
@@ -864,42 +862,41 @@ NAN_METHOD (DTraceConsumer::Aggwalk) {
 	int rval;
 
 	if (!info[0]->IsFunction()){
-		// return (dtc->badarg("expected function as argument"));
-	}
+		Nan::ThrowError(dtc->badarg("expected function as argument"));
+	}else{
 
-	dtc->dtc_callback = Local<Function>::Cast(info[0]);
-	dtc->dtc_args = &info;
-	dtc->dtc_error = Nan::Null();
+		dtc->dtc_callback = Local<Function>::Cast(info[0]);
+		dtc->dtc_args = &info;
+		dtc->dtc_error = Nan::Null();
 
-	if (dtrace_status(dtp) == -1) {
-		// return (dtc->error("couldn't get status: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
+		if (dtrace_status(dtp) == -1) {
+			Nan::ThrowError(dtc->error("couldn't get status: %s\n",
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else if (dtrace_aggregate_snap(dtp) == -1) {
+			Nan::ThrowError(dtc->error("couldn't snap aggregate: %s\n",
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+			rval = dtrace_aggregate_walk(dtp, DTraceConsumer::aggwalk, dtc);
 
-	if (dtrace_aggregate_snap(dtp) == -1) {
-		// return (dtc->error("couldn't snap aggregate: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
+			/*
+			 * Flush the ranges cache; the ranges will go out of scope when the
+			 * destructor for our HandleScope is called, and we cannot be left
+			 * holding references.
+			 */
+			dtc->ranges_cache(DTRACE_AGGVARIDNONE, NULL);
 
-	rval = dtrace_aggregate_walk(dtp, DTraceConsumer::aggwalk, dtc);
+			if (rval == -1) {
+				if (!dtc->dtc_error->IsNull()){
+					Nan::ThrowError(dtc->dtc_error);
+				}
 
-	/*
-	 * Flush the ranges cache; the ranges will go out of scope when the
-	 * destructor for our HandleScope is called, and we cannot be left
-	 * holding references.
-	 */
-	dtc->ranges_cache(DTRACE_AGGVARIDNONE, NULL);
-
-	if (rval == -1) {
-		if (!dtc->dtc_error->IsNull()){
-			// return (dtc->dtc_error);
+				Nan::ThrowError(dtc->error("couldn't walk aggregate: %s\n",
+				    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+			}else{
+		    	info.GetReturnValue().Set(Nan::Undefined());
+			}
 		}
-
-		// return (dtc->error("couldn't walk aggregate: %s\n",
-		//     dtrace_errmsg(dtp, dtrace_errno(dtp))));
 	}
-
-    info.GetReturnValue().Set(Nan::Undefined());
 }
 
 NAN_METHOD (DTraceConsumer::Aggmin) {
@@ -913,11 +910,5 @@ NAN_METHOD (DTraceConsumer::Aggmax) {
 NAN_METHOD (DTraceConsumer::Version) {
     info.GetReturnValue().Set(Nan::New<v8::String>(_dtrace_version).ToLocalChecked());
 }
-
-// extern "C" void
-// init (Handle<Object> target) 
-// {
-// 	DTraceConsumer::Initialize(target);
-// }
 
 NODE_MODULE(dtrace, DTraceConsumer::Init);
