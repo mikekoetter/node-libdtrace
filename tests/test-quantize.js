@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 dtp = new libdtrace.Consumer();
@@ -11,7 +10,7 @@ for (i = -32; i < 32; i++)
 
 prog += '}\n';
 
-sys.puts(prog);
+console.log(prog);
 
 dtp.strcompile(prog);
 
@@ -38,7 +37,7 @@ dtp.aggwalk(function (varid, key, val) {
 	assert.equal(key.length, 0);
 	assert.ok(val instanceof Array, 'expected val to be an array');
 	assert.deepEqual(expected, val);
-	sys.puts(sys.inspect(val));
+	console.log(val);
 });
 
 delete dtp;
