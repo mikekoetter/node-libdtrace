@@ -15,7 +15,6 @@
 #include <errno.h>
 #include <string>
 #include <vector>
-
 /*
  * Sadly, libelf refuses to compile if _FILE_OFFSET_BITS has been manually
  * jacked to 64 on a 32-bit compile.  In this case, we just manually set it
@@ -25,7 +24,6 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 32
 #endif
-
 #include <dtrace.h>
 
 /*
@@ -71,7 +69,9 @@ using namespace v8;
 using std::string;
 using std::vector;
 
-
+#if __FreeBSD__
+typedef enum { B_FALSE, B_TRUE }        boolean_t;
+#endif
 
 class DTraceConsumer : public Nan::ObjectWrap {
 public:
