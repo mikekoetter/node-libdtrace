@@ -1,5 +1,4 @@
-var util = require('util');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var i;
 
 dtp = new libdtrace.Consumer();
@@ -18,7 +17,7 @@ prog =
 	'}\n' +
 	'\n';
 
-util.puts(prog);
+console.log(prog);
 
 dtp.setopt('aggrate', '10ms');
 dtp.strcompile(prog);
@@ -41,7 +40,7 @@ setInterval(function () {
 			return;
 			
 		for (i = data.length - 1; i >= 0 && i >= data.length - 5; i--)
-			util.puts(util.inspect(data[i], false, null));
+			console.log(data[i], false, null);
 	});
 }, 10);
 

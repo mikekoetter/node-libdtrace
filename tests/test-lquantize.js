@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 dtp = new libdtrace.Consumer();
@@ -11,14 +10,14 @@ for (i = -5; i < 15; i++)
 
 prog += '}\n';
 
-sys.puts(prog);
+console.log(prog);
 
 dtp.strcompile(prog);
 
 dtp.go();
 
 dtp.aggwalk(function (varid, key, val) {
-	sys.puts(sys.inspect(val));
+	console.log(val);
 });
 
 dtp = new libdtrace.Consumer();
@@ -35,7 +34,7 @@ dtp.strcompile(prog);
 dtp.go();
 
 dtp.aggwalk(function (varid, key, val) {
-	sys.puts(sys.inspect(val));
+	console.log(val);
 });
 
 delete dtp;

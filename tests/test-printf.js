@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 dtp = new libdtrace.Consumer();
@@ -13,8 +12,8 @@ dtp.consume(function testbasic (probe, rec) {
 	assert.equal(probe.function, '');
 	assert.equal(probe.name, 'BEGIN');
 
-	sys.puts(sys.inspect(probe));
-	sys.puts(sys.inspect(rec));
+	console.log(probe);
+	console.log(rec);
 });
 
 dtp.stop();
