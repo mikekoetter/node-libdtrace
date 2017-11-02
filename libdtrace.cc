@@ -7,11 +7,11 @@
 #undef _XOPEN_SOURCE
 #endif
 
-#include <v8.h>
-#include <node.h>
+#include <nan.h>
+#include <iostream>
+
 #include <string.h>
 #include <unistd.h>
-#include <node_object_wrap.h>
 #include <errno.h>
 #include <string>
 #include <vector>
@@ -65,79 +65,123 @@
         DTRACE_LLQUANTIZE_NSTEPSHIFT)
 #endif
 
+
+using namespace Nan;  
 using namespace v8;
 using std::string;
 using std::vector;
 
-class DTraceConsumer : node::ObjectWrap {
+
+
+class DTraceConsumer : public Nan::ObjectWrap {
 public:
-	static void Initialize(Handle<Object> target);
+
+	static NAN_MODULE_INIT(Init)
+	{
+
+
+
+    	v8::Local<v8::FunctionTemplate> dtc = Nan::New<v8::FunctionTemplate>(New);
+
+		dtc->SetClassName(Nan::New("Consumer").ToLocalChecked());
+	    dtc->InstanceTemplate()->SetInternalFieldCount(1);
+
+
+	    Nan::SetPrototypeMethod(dtc, "strcompile", DTraceConsumer::Strcompile);
+	    Nan::SetPrototypeMethod(dtc, "version", DTraceConsumer::Version);
+	    Nan::SetPrototypeMethod(dtc, "setopt", DTraceConsumer::Setopt);
+
+
+	    Nan::SetPrototypeMethod(dtc, "go", DTraceConsumer::Go);
+	    Nan::SetPrototypeMethod(dtc, "consume", DTraceConsumer::Consume);
+	    Nan::SetPrototypeMethod(dtc, "aggwalk", DTraceConsumer::Aggwalk);		
+	    Nan::SetPrototypeMethod(dtc, "aggclear", DTraceConsumer::Aggclear);		
+	    Nan::SetPrototypeMethod(dtc, "aggmin", DTraceConsumer::Aggmin);		
+	    Nan::SetPrototypeMethod(dtc, "aggmax", DTraceConsumer::Aggmax);		
+	    Nan::SetPrototypeMethod(dtc, "stop", DTraceConsumer::Stop);
+
+    	dtc_templ.Reset(dtc);
+
+    	Nan::Set(target, Nan::New("Consumer").ToLocalChecked(),
+    		Nan::GetFunction(dtc).ToLocalChecked());
+	}
+
 
 protected:
 	DTraceConsumer();
 	~DTraceConsumer();
 
-	Handle<Value> error(const char *fmt, ...);
-	Handle<Value> badarg(const char *msg);
+	v8::Local<v8::Value> error(const char *fmt, ...);
+	v8::Local<v8::Value> badarg(const char *msg);
 	boolean_t valid(const dtrace_recdesc_t *);
 	const char *action(const dtrace_recdesc_t *, char *, int);
-	Local<Value> record(const dtrace_recdesc_t *, caddr_t);
-	Local<Object> probedesc(const dtrace_probedesc_t *);
+	v8::Local<v8::Value>   record(const dtrace_recdesc_t *, caddr_t);
+	v8::Local<v8::Object>  probedesc(const dtrace_probedesc_t *);
 
-	Local<Array> *ranges_cached(dtrace_aggvarid_t);
-	Local<Array> *ranges_cache(dtrace_aggvarid_t, Local<Array> *);
-	Local<Array> *ranges_quantize(dtrace_aggvarid_t);
-	Local<Array> *ranges_lquantize(dtrace_aggvarid_t, uint64_t);
-	Local<Array> *ranges_llquantize(dtrace_aggvarid_t, uint64_t, int);
+	v8::Local<v8::Array> *ranges_cached(dtrace_aggvarid_t);
+	v8::Local<v8::Array> *ranges_cache(dtrace_aggvarid_t, Local<Array> *);
+	v8::Local<v8::Array> *ranges_quantize(dtrace_aggvarid_t);
+	v8::Local<v8::Array> *ranges_lquantize(dtrace_aggvarid_t, uint64_t);
+	v8::Local<v8::Array> *ranges_llquantize(dtrace_aggvarid_t, uint64_t, int);
 
 	static int consume(const dtrace_probedata_t *data,
 	    const dtrace_recdesc_t *rec, void *arg);
 	static int aggwalk(const dtrace_aggdata_t *agg, void *arg);
 	static int bufhandler(const dtrace_bufdata_t *bufdata, void *arg);
 
-	static Handle<Value> New(const Arguments& args);
-	static Handle<Value> Consume(const Arguments& args);
-	static Handle<Value> Aggclear(const Arguments& args);
-	static Handle<Value> Aggwalk(const Arguments& args);
-	static Handle<Value> Aggmin(const Arguments& args);
-	static Handle<Value> Aggmax(const Arguments& args);
-	static Handle<Value> Strcompile(const Arguments& args);
-	static Handle<Value> Setopt(const Arguments& args);
-	static Handle<Value> Go(const Arguments& args);
-	static Handle<Value> Stop(const Arguments& args);
-	static Handle<Value> Version(const Arguments& args);
+	static NAN_METHOD(New);
+	static NAN_METHOD(Consume);
+	static NAN_METHOD(Aggclear);
+	static NAN_METHOD(Aggwalk);
+	static NAN_METHOD(Aggmin);
+	static NAN_METHOD(Aggmax);
+	static NAN_METHOD(Strcompile);
+	static NAN_METHOD(Setopt);
+	static NAN_METHOD(Go);
+	static NAN_METHOD(Stop);
+	static NAN_METHOD(Version);
 
 private:
 	dtrace_hdl_t *dtc_handle;
-	static Persistent<FunctionTemplate> dtc_templ;
-	const Arguments *dtc_args;
+
+	static Nan::Persistent<FunctionTemplate> dtc_templ;
+	const Nan::FunctionCallbackInfo<v8::Value> *dtc_args;
 	Local<Function> dtc_callback;
-	Handle<Value> dtc_error;
+	v8::Local<v8::Value> dtc_error;
 	Local<Array> *dtc_ranges;
 	dtrace_aggvarid_t dtc_ranges_varid;
+
+
+  static inline Nan::Persistent<v8::Function> & constructor() {
+    static Nan::Persistent<v8::Function> my_constructor;
+    return my_constructor;
+  }
+
 };
 
-Persistent<FunctionTemplate> DTraceConsumer::dtc_templ;
 
-DTraceConsumer::DTraceConsumer() : node::ObjectWrap()
+Nan::Persistent<FunctionTemplate> DTraceConsumer::dtc_templ;
+
+DTraceConsumer::DTraceConsumer() : Nan::ObjectWrap()
 {
 	int err;
 	dtrace_hdl_t *dtp;
 
-	if ((dtc_handle = dtp = dtrace_open(DTRACE_VERSION, 0, &err)) == NULL)
-		throw (dtrace_errmsg(NULL, err));
+	if ((dtc_handle = dtp = dtrace_open(DTRACE_VERSION, 0, &err)) == NULL){
+		Nan::ThrowError(Nan::New<v8::String>(dtrace_errmsg(NULL, err)).ToLocalChecked());
+	}else{
+		/*
+		 * Set our buffer size and aggregation buffer size to the de facto
+		 * standard of 4M.
+		 */
+		(void) dtrace_setopt(dtp, "bufsize", "4m");
+		(void) dtrace_setopt(dtp, "aggsize", "4m");
 
-	/*
-	 * Set our buffer size and aggregation buffer size to the de facto
-	 * standard of 4M.
-	 */
-	(void) dtrace_setopt(dtp, "bufsize", "4m");
-	(void) dtrace_setopt(dtp, "aggsize", "4m");
+		if (dtrace_handle_buffered(dtp, DTraceConsumer::bufhandler, this) == -1)
+			throw (dtrace_errmsg(dtp, dtrace_errno(dtp)));
 
-	if (dtrace_handle_buffered(dtp, DTraceConsumer::bufhandler, this) == -1)
-		throw (dtrace_errmsg(dtp, dtrace_errno(dtp)));
-
-	dtc_ranges = NULL;
+		dtc_ranges = NULL;
+	}
 };
 
 DTraceConsumer::~DTraceConsumer()
@@ -148,52 +192,20 @@ DTraceConsumer::~DTraceConsumer()
 	dtrace_close(dtc_handle);
 }
 
-void
-DTraceConsumer::Initialize(Handle<Object> target)
-{
-	HandleScope scope;
-	Local<FunctionTemplate> dtc =
-	    FunctionTemplate::New(DTraceConsumer::New);
 
-	dtc_templ = Persistent<FunctionTemplate>::New(dtc);
-	dtc_templ->InstanceTemplate()->SetInternalFieldCount(1);
-	dtc_templ->SetClassName(String::NewSymbol("Consumer"));
-
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "strcompile",
-	    DTraceConsumer::Strcompile);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "setopt", DTraceConsumer::Setopt);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "go", DTraceConsumer::Go);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "consume",
-	    DTraceConsumer::Consume);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "aggwalk",
-	    DTraceConsumer::Aggwalk);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "aggclear",
-	    DTraceConsumer::Aggclear);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "aggmin", DTraceConsumer::Aggmin);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "aggmax", DTraceConsumer::Aggmax);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "stop", DTraceConsumer::Stop);
-	NODE_SET_PROTOTYPE_METHOD(dtc_templ, "version",
-	    DTraceConsumer::Version);
-
-	target->Set(String::NewSymbol("Consumer"), dtc_templ->GetFunction());
-}
-
-Handle<Value>
-DTraceConsumer::New(const Arguments& args)
-{
-	HandleScope scope;
+NAN_METHOD (DTraceConsumer::New) {
 	DTraceConsumer *dtc;
-
 	try {
 		dtc = new DTraceConsumer();
+    	dtc->Wrap(info.This());
+	  	info.GetReturnValue().Set(info.This());
+
 	} catch (char const *msg) {
-		return (ThrowException(Exception::Error(String::New(msg))));
+		Nan::ThrowError(Nan::New<v8::String>(msg).ToLocalChecked());
 	}
-
-	dtc->Wrap(args.Holder());
-
-	return (args.This());
 }
+
+
 
 const char *
 DTraceConsumer::action(const dtrace_recdesc_t *rec, char *buf, int size)
@@ -245,7 +257,7 @@ DTraceConsumer::action(const dtrace_recdesc_t *rec, char *buf, int size)
 	return (buf);
 }
 
-Handle<Value>
+v8::Local<v8::Value>
 DTraceConsumer::error(const char *fmt, ...)
 {
 	char buf[1024], buf2[1024];
@@ -265,14 +277,14 @@ DTraceConsumer::error(const char *fmt, ...)
 	} else {
 		buf[strlen(buf) - 1] = '\0';
 	}
-
-	return (ThrowException(Exception::Error(String::New(err))));
+	
+	return Nan::Error(err);
 }
 
-Handle<Value>
+v8::Local<v8::Value>
 DTraceConsumer::badarg(const char *msg)
 {
-	return (ThrowException(Exception::TypeError(String::New(msg))));
+	return Nan::TypeError(msg);
 }
 
 boolean_t
@@ -294,26 +306,26 @@ DTraceConsumer::valid(const dtrace_recdesc_t *rec)
 	}
 }
 
-Local<Value>
+v8::Local<v8::Value>
 DTraceConsumer::record(const dtrace_recdesc_t *rec, caddr_t addr)
 {
 	switch (rec->dtrd_action) {
 	case DTRACEACT_DIFEXPR:
 		switch (rec->dtrd_size) {
 		case sizeof (uint64_t):
-			return (Number::New(*((int64_t *)addr)));
+			return (Nan::New<v8::Number>(*((int64_t *)addr)));
 
 		case sizeof (uint32_t):
-			return (Integer::New(*((int32_t *)addr)));
+			return (Nan::New<v8::Integer>(*((int32_t *)addr)));
 
 		case sizeof (uint16_t):
-			return (Integer::New(*((uint16_t *)addr)));
+			return (Nan::New<v8::Integer>(*((uint16_t *)addr)));
 
 		case sizeof (uint8_t):
-			return (Integer::New(*((uint8_t *)addr)));
+			return (Nan::New<v8::Integer>(*((uint8_t *)addr)));
 
 		default:
-			return (String::New((const char *)addr));
+			return	Nan::New<v8::String>((const char *)addr).ToLocalChecked();
 		}
 
 	case DTRACEACT_SYM:
@@ -343,7 +355,7 @@ DTraceConsumer::record(const dtrace_recdesc_t *rec, caddr_t addr)
 			 * tick -- or "<undefined>" if there is none.
 			 */
 			if ((tick = strchr(buf, '`')) == NULL)
-				return (String::New("<unknown>"));
+				return Nan::New<v8::String>("<unknown>").ToLocalChecked();
 
 			*tick = '\0';
 		} else if (rec->dtrd_action == DTRACEACT_SYM ||
@@ -356,112 +368,110 @@ DTraceConsumer::record(const dtrace_recdesc_t *rec, caddr_t addr)
 			if ((plus = strrchr(buf, '+')) != NULL)
 				*plus = '\0';
 		}
-
-		return (String::New(buf));
+		return (Nan::New<v8::String>(buf).ToLocalChecked());
 	}
 
 	assert(B_FALSE);
-	return (Integer::New(-1));
+
+	return Nan::New<v8::Integer>(-1);
 }
 
-Handle<Value>
-DTraceConsumer::Strcompile(const Arguments& args)
-{
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+NAN_METHOD (DTraceConsumer::Strcompile) {
+
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 	dtrace_prog_t *dp;
-	dtrace_proginfo_t info;
+	dtrace_proginfo_t dinfo;
 
-	if (args.Length() < 1 || !args[0]->IsString())
-		return (dtc->badarg("expected program"));
+	if (info.Length() < 1 || !info[0]->IsString()){
+		Nan::ThrowError(dtc->badarg("expected program"));
+	}else{
 
-	String::Utf8Value program(args[0]->ToString());
+		String::Utf8Value program(info[0]->ToString());
 
-	if ((dp = dtrace_program_strcompile(dtp, *program,
-	    DTRACE_PROBESPEC_NAME, 0, 0, NULL)) == NULL) {
-		return (dtc->error("couldn't compile '%s': %s\n", *program,
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		if ((dp = dtrace_program_strcompile(dtp, *program,
+		    DTRACE_PROBESPEC_NAME, 0, 0, NULL)) == NULL) {
+			Nan::ThrowError(dtc->error("couldn't compile '%s': %s\n", *program,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		} else if (dtrace_program_exec(dtp, dp, &dinfo) == -1) {
+			Nan::ThrowError(dtc->error("couldn't execute '%s': %s\n", *program,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
+		}
 	}
-
-	if (dtrace_program_exec(dtp, dp, &info) == -1) {
-		return (dtc->error("couldn't execute '%s': %s\n", *program,
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	return (Undefined());
 }
 
-Handle<Value>
-DTraceConsumer::Setopt(const Arguments& args)
-{
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+
+NAN_METHOD (DTraceConsumer::Setopt) {
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
-	dtrace_prog_t *dp;
-	dtrace_proginfo_t info;
+	// dtrace_prog_t *dp;
+	// dtrace_proginfo_t dinfo;
 	int rval;
 
-	if (args.Length() < 1 || !args[0]->IsString())
-		return (dtc->badarg("expected an option to set"));
+	if (info.Length() < 1 || !info[0]->IsString()){
+		Nan::ThrowError(dtc->badarg("expected an option to set"));
+	}else{
+		String::Utf8Value option(info[0]->ToString());
 
-	String::Utf8Value option(args[0]->ToString());
+		if (info.Length() >= 2) {
+			if (info[1]->IsArray()){
+				Nan::ThrowError(dtc->badarg("option value can't be an array"));
+			}else if (info[1]->IsObject()){
+				Nan::ThrowError(dtc->badarg("option value can't be an object"));
+			}else{
+				String::Utf8Value optval(info[1]->ToString());
+				rval = dtrace_setopt(dtp, *option, *optval);
+			}
+		} else {
+			rval = dtrace_setopt(dtp, *option, NULL);
+		}
 
-	if (args.Length() >= 2) {
-		if (args[1]->IsArray())
-			return (dtc->badarg("option value can't be an array"));
-
-		if (args[1]->IsObject())
-			return (dtc->badarg("option value can't be an object"));
-
-		String::Utf8Value optval(args[1]->ToString());
-		rval = dtrace_setopt(dtp, *option, *optval);
-	} else {
-		rval = dtrace_setopt(dtp, *option, NULL);
+		if (rval != 0) {
+			Nan::ThrowError(dtc->error("couldn't set option '%s': %s\n", *option,
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
+		}
 	}
-
-	if (rval != 0) {
-		return (dtc->error("couldn't set option '%s': %s\n", *option,
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	return (Undefined());
 }
 
-Handle<Value>
-DTraceConsumer::Go(const Arguments& args)
-{
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+NAN_METHOD (DTraceConsumer::Go) {
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
-	if (dtrace_go(dtp) == -1) {
-		return (dtc->error("couldn't enable tracing: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	if (dtrace_go(dtp) == -1){
+		Nan::ThrowError(dtc->error("couldn't enable tracing: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+    	info.GetReturnValue().Set(Nan::Undefined());
 	}
-
-	return (Undefined());
+	
 }
 
-Handle<Value>
-DTraceConsumer::Stop(const Arguments& args)
-{
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+NAN_METHOD (DTraceConsumer::Stop) {
+
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
 	if (dtrace_stop(dtp) == -1) {
-		return (dtc->error("couldn't disable tracing: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		Nan::ThrowError(dtc->error("couldn't disable tracing: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+    	info.GetReturnValue().Set(Nan::Undefined());		
 	}
-
-	return (Undefined());
+	
 }
 
-Local<Object>
+v8::Local<v8::Object> 
 DTraceConsumer::probedesc(const dtrace_probedesc_t *pd)
 {
-	Local<Object> probe = Object::New();
-	probe->Set(String::New("provider"), String::New(pd->dtpd_provider));
-	probe->Set(String::New("module"), String::New(pd->dtpd_mod));
-	probe->Set(String::New("function"), String::New(pd->dtpd_func));
-	probe->Set(String::New("name"), String::New(pd->dtpd_name));
+	v8::Local<v8::Object> probe = Nan::New<v8::Object>();
+	Nan::Set(probe, Nan::New<v8::String>("provider").ToLocalChecked(),Nan::New<v8::String>(pd->dtpd_provider).ToLocalChecked());
+	Nan::Set(probe, Nan::New<v8::String>("module").ToLocalChecked(),Nan::New<v8::String>(pd->dtpd_mod).ToLocalChecked());
+	Nan::Set(probe, Nan::New<v8::String>("function").ToLocalChecked(),Nan::New<v8::String>(pd->dtpd_func).ToLocalChecked());
+	Nan::Set(probe, Nan::New<v8::String>("name").ToLocalChecked(),Nan::New<v8::String>(pd->dtpd_name).ToLocalChecked());
 
 	return (probe);
 }
@@ -476,9 +486,10 @@ DTraceConsumer::bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 	if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
 		return (DTRACE_HANDLE_OK);
 
-	Local<Object> probe = dtc->probedesc(data->dtpda_pdesc);
-	Local<Object> record = Object::New();
-	record->Set(String::New("data"), String::New(bufdata->dtbda_buffered));
+	v8::Local<v8::Object> probe = dtc->probedesc(data->dtpda_pdesc);
+	v8::Local<v8::Object> record = Nan::New<v8::Object>();
+    
+    Nan::Set(record, Nan::New<v8::String>("data").ToLocalChecked(),Nan::New<v8::String>(bufdata->dtbda_buffered).ToLocalChecked());
 	Local<Value> argv[2] = { probe, record };
 
 	dtc->dtc_callback->Call(dtc->dtc_args->This(), 2, argv);
@@ -494,11 +505,11 @@ DTraceConsumer::consume(const dtrace_probedata_t *data,
 	dtrace_probedesc_t *pd = data->dtpda_pdesc;
 	Local<Value> datum;
 
-	Local<Object> probe = dtc->probedesc(data->dtpda_pdesc);
+	v8::Local<v8::Object>  probe = dtc->probedesc(data->dtpda_pdesc);
 
 	if (rec == NULL) {
-		Local<Value> argv[1] = { probe };
-		dtc->dtc_callback->Call(dtc->dtc_args->This(), 1, argv);
+		Local<Value> info[1] = { probe };
+		dtc->dtc_callback->Call(dtc->dtc_args->This(), 1, info);
 		return (DTRACE_CONSUME_NEXT);
 	}
 
@@ -519,35 +530,36 @@ DTraceConsumer::consume(const dtrace_probedata_t *data,
 		return (DTRACE_CONSUME_ABORT);
 	}
 
-	Local<Object> record = Object::New();
-	record->Set(String::New("data"), dtc->record(rec, data->dtpda_data));
-	Local<Value> argv[2] = { probe, record };
+    v8::Local<v8::Object> record = Nan::New<v8::Object>();
+    Nan::Set(record, Nan::New<v8::String>("data").ToLocalChecked(), dtc->record(rec, data->dtpda_data));
 
-	dtc->dtc_callback->Call(dtc->dtc_args->This(), 2, argv);
+	Local<Value> info[2] = { probe, record };
+
+	dtc->dtc_callback->Call(dtc->dtc_args->This(), 2, info);
 
 	return (DTRACE_CONSUME_THIS);
 }
 
-Handle<Value>
-DTraceConsumer::Consume(const Arguments& args)
-{
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+NAN_METHOD (DTraceConsumer::Consume) {
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 	dtrace_workstatus_t status;
 
-	if (!args[0]->IsFunction())
-		return (dtc->badarg("expected function as argument"));
+	if (!info[0]->IsFunction()){
+		Nan::ThrowError(dtc->badarg("expected function as argument"));
+	}else{
+		dtc->dtc_callback = Local<Function>::Cast(info[0]);
+		dtc->dtc_args = &info;
+		dtc->dtc_error = Nan::Null();
 
-	dtc->dtc_callback = Local<Function>::Cast(args[0]);
-	dtc->dtc_args = &args;
-	dtc->dtc_error = Null();
+		status = dtrace_work(dtp, NULL, NULL, DTraceConsumer::consume, dtc);
 
-	status = dtrace_work(dtp, NULL, NULL, DTraceConsumer::consume, dtc);
-
-	if (status == -1 && !dtc->dtc_error->IsNull())
-		return (dtc->dtc_error);
-
-	return (Undefined());
+		if (status == -1 && !dtc->dtc_error->IsNull()){
+			Nan::ThrowError(dtc->dtc_error);
+		}else{
+	    	info.GetReturnValue().Set(Nan::Undefined());
+		}
+	}
 }
 
 /*
@@ -557,7 +569,7 @@ DTraceConsumer::Consume(const Arguments& args)
  * may see significant degradations in performance.  (If this is a common
  * case, this cache should clearly be expanded.)
  */
-Local<Array> *
+v8::Local<v8::Array> *
 DTraceConsumer::ranges_cached(dtrace_aggvarid_t varid)
 {
 	if (varid == dtc_ranges_varid)
@@ -566,7 +578,7 @@ DTraceConsumer::ranges_cached(dtrace_aggvarid_t varid)
 	return (NULL);
 }
 
-Local<Array> *
+v8::Local<v8::Array>  *
 DTraceConsumer::ranges_cache(dtrace_aggvarid_t varid, Local<Array> *ranges)
 {
 	if (dtc_ranges != NULL)
@@ -578,11 +590,11 @@ DTraceConsumer::ranges_cache(dtrace_aggvarid_t varid, Local<Array> *ranges)
 	return (ranges);
 }
 
-Local<Array> *
+v8::Local<v8::Array> *
 DTraceConsumer::ranges_quantize(dtrace_aggvarid_t varid)
 {
 	int64_t min, max;
-	Local<Array> *ranges;
+	v8::Local<v8::Array> *ranges;
 	int i;
 
 	if ((ranges = ranges_cached(varid)) != NULL)
@@ -590,10 +602,10 @@ DTraceConsumer::ranges_quantize(dtrace_aggvarid_t varid)
 
 	ranges = new Local<Array>[DTRACE_QUANTIZE_NBUCKETS];
 
-	for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
-		ranges[i] = Array::New(2);
+	for (i = 0; i < (int)DTRACE_QUANTIZE_NBUCKETS; i++) {
+		ranges[i] = Nan::New<v8::Array>(2);
 
-		if (i < DTRACE_QUANTIZE_ZEROBUCKET) {
+		if (i < (int)DTRACE_QUANTIZE_ZEROBUCKET) {
 			/*
 			 * If we're less than the zero bucket, our range
 			 * extends from negative infinity through to the
@@ -606,24 +618,24 @@ DTraceConsumer::ranges_quantize(dtrace_aggvarid_t varid)
 			min = max = 0;
 		} else {
 			min = DTRACE_QUANTIZE_BUCKETVAL(i);
-			max = i < DTRACE_QUANTIZE_NBUCKETS - 1 ?
+			max = i < (int)DTRACE_QUANTIZE_NBUCKETS - 1 ?
 			    DTRACE_QUANTIZE_BUCKETVAL(i + 1) - 1 :
 			    INT64_MAX;
 		}
 
-		ranges[i]->Set(0, Number::New(min));
-		ranges[i]->Set(1, Number::New(max));
+		ranges[i]->Set(0, Nan::New<v8::Number>(min));
+		ranges[i]->Set(1, Nan::New<v8::Number>(max));
 	}
 
 	return (ranges_cache(varid, ranges));
 }
 
-Local<Array> *
+v8::Local<v8::Array> *
 DTraceConsumer::ranges_lquantize(dtrace_aggvarid_t varid,
     const uint64_t arg)
 {
 	int64_t min, max;
-	Local<Array> *ranges;
+	v8::Local<v8::Array> *ranges;
 	int32_t base;
 	uint16_t step, levels;
 	int i;
@@ -638,19 +650,19 @@ DTraceConsumer::ranges_lquantize(dtrace_aggvarid_t varid,
 	ranges = new Local<Array>[levels + 2];
 
 	for (i = 0; i <= levels + 1; i++) {
-		ranges[i] = Array::New(2);
+		ranges[i] = Nan::New<v8::Array>(2);
 
 		min = i == 0 ? INT64_MIN : base + ((i - 1) * step);
 		max = i > levels ? INT64_MAX : base + (i * step) - 1;
 
-		ranges[i]->Set(0, Number::New(min));
-		ranges[i]->Set(1, Number::New(max));
+		ranges[i]->Set(0, Nan::New<v8::Number>(min));
+		ranges[i]->Set(1, Nan::New<v8::Number>(max));
 	}
 
 	return (ranges_cache(varid, ranges));
 }
 
-Local<Array> *
+v8::Local<v8::Array> *
 DTraceConsumer::ranges_llquantize(dtrace_aggvarid_t varid,
     const uint64_t arg, int nbuckets)
 {
@@ -667,23 +679,23 @@ DTraceConsumer::ranges_llquantize(dtrace_aggvarid_t varid,
 	high = DTRACE_LLQUANTIZE_HIGH(arg);
 	nsteps = DTRACE_LLQUANTIZE_NSTEP(arg);
 
-	ranges = new Local<Array>[nbuckets];
+	ranges = new v8::Local<v8::Array>[nbuckets];
 
 	for (order = 0; order < low; order++)
 		value *= factor;
 
-	ranges[bucket] = Array::New(2);
-	ranges[bucket]->Set(0, Number::New(0));
-	ranges[bucket]->Set(1, Number::New(value - 1));
+	ranges[bucket] = Nan::New<v8::Array>(2);
+	ranges[bucket]->Set(0, Nan::New<v8::Number>(0));
+	ranges[bucket]->Set(1, Nan::New<v8::Number>(value - 1));
 	bucket++;
 
 	next = value * factor;
 	step = next > nsteps ? next / nsteps : 1;
 
 	while (order <= high) {
-		ranges[bucket] = Array::New(2);
-		ranges[bucket]->Set(0, Number::New(value));
-		ranges[bucket]->Set(1, Number::New(value + step - 1));
+		ranges[bucket] = Nan::New<v8::Array>(2);
+		ranges[bucket]->Set(0, Nan::New<v8::Number>(value));
+		ranges[bucket]->Set(1, Nan::New<v8::Number>(value + step - 1));
 		bucket++;
 
 		if ((value += step) != next)
@@ -694,9 +706,9 @@ DTraceConsumer::ranges_llquantize(dtrace_aggvarid_t varid,
 		order++;
 	}
 
-	ranges[bucket] = Array::New(2);
-	ranges[bucket]->Set(0, Number::New(value));
-	ranges[bucket]->Set(1, Number::New(INT64_MAX));
+	ranges[bucket] = Nan::New<v8::Array>(2);
+	ranges[bucket]->Set(0, Nan::New<v8::Number>(value));
+	ranges[bucket]->Set(1, Nan::New<v8::Number>(INT64_MAX));
 
 	assert(bucket + 1 == nbuckets);
 
@@ -709,7 +721,8 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 	DTraceConsumer *dtc = (DTraceConsumer *)arg;
 	const dtrace_aggdesc_t *aggdesc = agg->dtada_desc;
 	const dtrace_recdesc_t *aggrec;
-	Local<Value> id = Integer::New(aggdesc->dtagd_varid), val;
+	Local<Value> val;
+	Local<Value> id =  Nan::New<v8::Number>(aggdesc->dtagd_varid);
 	Local<Array> key;
 	char errbuf[256];
 	int i;
@@ -719,7 +732,7 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 	 * if we have fewer than two records, something is deeply wrong.
 	 */
 	assert(aggdesc->dtagd_nrecs >= 2);
-	key = Array::New(aggdesc->dtagd_nrecs - 2);
+	key = Nan::New<v8::Array>(aggdesc->dtagd_nrecs - 2);
 
 	for (i = 1; i < aggdesc->dtagd_nrecs - 1; i++) {
 		const dtrace_recdesc_t *rec = &aggdesc->dtagd_rec[i];
@@ -747,7 +760,7 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 		caddr_t addr = agg->dtada_data + aggrec->dtrd_offset;
 
 		assert(aggrec->dtrd_size == sizeof (uint64_t));
-		val = Number::New(*((int64_t *)addr));
+		val =  Nan::New<v8::Number>(*((int64_t *)addr));
 		break;
 	}
 
@@ -756,12 +769,12 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 		    aggrec->dtrd_offset);
 
 		assert(aggrec->dtrd_size == sizeof (uint64_t) * 2);
-		val = Number::New(data[1] / (double)data[0]);
+		val =  Nan::New<v8::Number>(data[1] / (double)data[0]);
 		break;
 	}
 
 	case DTRACEAGG_QUANTIZE: {
-		Local<Array> quantize = Array::New();
+		Local<Array> quantize =  Nan::New<v8::Array>();
 		const int64_t *data = (int64_t *)(agg->dtada_data +
 		    aggrec->dtrd_offset);
 		Local<Array> *ranges, datum;
@@ -769,13 +782,13 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 
 		ranges = dtc->ranges_quantize(aggdesc->dtagd_varid); 
 
-		for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
+		for (i = 0; i < (int)DTRACE_QUANTIZE_NBUCKETS; i++) {
 			if (!data[i])
 				continue;
 
-			datum = Array::New(2);
+			datum = Nan::New<v8::Array>(2);
 			datum->Set(0, ranges[i]);
-			datum->Set(1, Number::New(data[i]));
+			datum->Set(1, Nan::New<v8::Number>(data[i]));
 
 			quantize->Set(j++, datum);
 		}
@@ -786,7 +799,7 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 
 	case DTRACEAGG_LQUANTIZE:
 	case DTRACEAGG_LLQUANTIZE: {
-		Local<Array> lquantize = Array::New();
+		Local<Array> lquantize = Nan::New<v8::Array>();
 		const int64_t *data = (int64_t *)(agg->dtada_data +
 		    aggrec->dtrd_offset);
 		Local<Array> *ranges, datum;
@@ -803,9 +816,9 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 			if (!data[i])
 				continue;
 
-			datum = Array::New(2);
+			datum = Nan::New<v8::Array>(2);
 			datum->Set(0, ranges[i]);
-			datum->Set(1, Number::New(data[i]));
+			datum->Set(1, Nan::New<v8::Number>(data[i]));
 
 			lquantize->Set(j++, datum);
 		}
@@ -827,89 +840,75 @@ DTraceConsumer::aggwalk(const dtrace_aggdata_t *agg, void *arg)
 	return (DTRACE_AGGWALK_REMOVE);
 }
 
-Handle<Value>
-DTraceConsumer::Aggclear(const Arguments& args)
-{
-	HandleScope scope;
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+NAN_METHOD (DTraceConsumer::Aggclear) {
+
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 
 	if (dtrace_status(dtp) == -1) {
-		return (dtc->error("couldn't get status: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	dtrace_aggregate_clear(dtp);
-	return (Undefined());
+		Nan::ThrowError(dtc->error("couldn't get status: %s\n",
+		     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+	}else{
+		dtrace_aggregate_clear(dtp);
+    	info.GetReturnValue().Set(Nan::Undefined());
+    }
 }
 
-Handle<Value>
-DTraceConsumer::Aggwalk(const Arguments& args)
-{
-	HandleScope scope;
-	DTraceConsumer *dtc = ObjectWrap::Unwrap<DTraceConsumer>(args.Holder());
+
+NAN_METHOD (DTraceConsumer::Aggwalk) {
+
+	DTraceConsumer *dtc =  Nan::ObjectWrap::Unwrap<DTraceConsumer>(info.Holder());
 	dtrace_hdl_t *dtp = dtc->dtc_handle;
 	int rval;
 
-	if (!args[0]->IsFunction())
-		return (dtc->badarg("expected function as argument"));
+	if (!info[0]->IsFunction()){
+		Nan::ThrowError(dtc->badarg("expected function as argument"));
+	}else{
 
-	dtc->dtc_callback = Local<Function>::Cast(args[0]);
-	dtc->dtc_args = &args;
-	dtc->dtc_error = Null();
+		dtc->dtc_callback = Local<Function>::Cast(info[0]);
+		dtc->dtc_args = &info;
+		dtc->dtc_error = Nan::Null();
 
-	if (dtrace_status(dtp) == -1) {
-		return (dtc->error("couldn't get status: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		if (dtrace_status(dtp) == -1) {
+			Nan::ThrowError(dtc->error("couldn't get status: %s\n",
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else if (dtrace_aggregate_snap(dtp) == -1) {
+			Nan::ThrowError(dtc->error("couldn't snap aggregate: %s\n",
+			     dtrace_errmsg(dtp, dtrace_errno(dtp))));
+		}else{
+			rval = dtrace_aggregate_walk(dtp, DTraceConsumer::aggwalk, dtc);
+
+			/*
+			 * Flush the ranges cache; the ranges will go out of scope when the
+			 * destructor for our HandleScope is called, and we cannot be left
+			 * holding references.
+			 */
+			dtc->ranges_cache(DTRACE_AGGVARIDNONE, NULL);
+
+			if (rval == -1) {
+				if (!dtc->dtc_error->IsNull()){
+					Nan::ThrowError(dtc->dtc_error);
+				}
+
+				Nan::ThrowError(dtc->error("couldn't walk aggregate: %s\n",
+				    dtrace_errmsg(dtp, dtrace_errno(dtp))));
+			}else{
+		    	info.GetReturnValue().Set(Nan::Undefined());
+			}
+		}
 	}
-
-	if (dtrace_aggregate_snap(dtp) == -1) {
-		return (dtc->error("couldn't snap aggregate: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	rval = dtrace_aggregate_walk(dtp, DTraceConsumer::aggwalk, dtc);
-
-	/*
-	 * Flush the ranges cache; the ranges will go out of scope when the
-	 * destructor for our HandleScope is called, and we cannot be left
-	 * holding references.
-	 */
-	dtc->ranges_cache(DTRACE_AGGVARIDNONE, NULL);
-
-	if (rval == -1) {
-		if (!dtc->dtc_error->IsNull())
-			return (dtc->dtc_error);
-
-		return (dtc->error("couldn't walk aggregate: %s\n",
-		    dtrace_errmsg(dtp, dtrace_errno(dtp))));
-	}
-
-	return (Undefined());
 }
 
-Handle<Value>
-DTraceConsumer::Aggmin(const Arguments& args)
-{
-	return (Number::New(INT64_MIN));
+NAN_METHOD (DTraceConsumer::Aggmin) {
+    info.GetReturnValue().Set(Nan::New<v8::Number>(INT64_MIN));
 }
 
-Handle<Value>
-DTraceConsumer::Aggmax(const Arguments& args)
-{
-	return (Number::New(INT64_MAX));
+NAN_METHOD (DTraceConsumer::Aggmax) {
+    info.GetReturnValue().Set(Nan::New<v8::Number>(INT64_MAX));
 }
 
-Handle<Value>
-DTraceConsumer::Version(const Arguments& args)
-{
-	return (String::New(_dtrace_version));
+NAN_METHOD (DTraceConsumer::Version) {
+    info.GetReturnValue().Set(Nan::New<v8::String>(_dtrace_version).ToLocalChecked());
 }
 
-extern "C" void
-init (Handle<Object> target) 
-{
-	DTraceConsumer::Initialize(target);
-}
-
-NODE_MODULE(dtrace, init);
+NODE_MODULE(dtrace, DTraceConsumer::Init);
