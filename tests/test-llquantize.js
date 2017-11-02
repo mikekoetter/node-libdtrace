@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 dtp = new libdtrace.Consumer();
@@ -7,7 +6,7 @@ dtp = new libdtrace.Consumer();
 ver = dtp.version().split(' ')[2].split('.');
 
 if (parseInt(ver[0]) == 1 && parseInt(ver[1]) <= 8) {
-	sys.puts('llquantize() not present in version ' + dtp.version() +
+	console.log('llquantize() not present in version ' + dtp.version() +
 	    '; not testing.');
 	process.exit(0);
 }
@@ -95,7 +94,6 @@ dtp.aggwalk(function (varid, key, val) {
 	    [ [ 9000, 9999 ], 20 ],
 	    [ [ 10000, 9223372036854776000 ], 2 ]
 	];
-
 	assert.deepEqual(val, expected);
 });
 

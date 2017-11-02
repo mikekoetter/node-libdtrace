@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 var fs = require('fs');
 
@@ -9,7 +8,7 @@ var test = function (action, valid, work)
 	 * First, verify that the action can be compiled and consumed.
 	 */
 	var dtp = new libdtrace.Consumer();
-	sys.puts('>>>> basic compile for ' + action + '()');
+	console.log('>>>> basic compile for ' + action + '()');
 
 	dtp.strcompile('BEGIN { ' + action + '(0); }');
 
@@ -30,7 +29,7 @@ var test = function (action, valid, work)
 			return;
 
 		found = true;
-		sys.puts('  ' + sys.inspect(rec));
+		console.log(rec);
 	});
 
 	assert.ok(found, 'did not find valid data record');
@@ -40,7 +39,7 @@ var test = function (action, valid, work)
 	/*
 	 * Now verify the straight consumption.
 	 */
-	sys.puts('>>>> consumption for ' + action +
+	console.log('>>>> consumption for ' + action +
 	    '() (using ' + argument + ' on profile probe)');
 
 	dtp = new libdtrace.Consumer();
@@ -65,13 +64,13 @@ var test = function (action, valid, work)
 		if (valid(rec.data))
 			found = true;
 
-		sys.puts('  ' + sys.inspect(rec));
+		console.log('  ' + sys.inspect(rec));
 	});
 
 	dtp.stop();
 	assert.ok(found, 'did not find valid record in principal buffer');
 
-	sys.puts('>>>> aggregation on ' + action +
+	console.log('>>>> aggregation on ' + action +
 	    '() (using ' + argument + ' on profile probe)');
 
 	dtp = new libdtrace.Consumer();
@@ -94,7 +93,7 @@ var test = function (action, valid, work)
 		if (valid(key[0]))
 			found = true;
 
-		sys.puts('  ' + sys.inspect(key) + ': ' + sys.inspect(val));
+		console.log('  ' + key + ': ' + val);
 	});
 };
 
@@ -116,7 +115,7 @@ var validaddr = function (str)
 
 var kernelwork = function ()
 {
-	fs.unlink('/tmp/does/not/exist');
+	fs.unlink('/tmp/does/not/exist', function(){});
 }
 
 var validkmod = function (str)

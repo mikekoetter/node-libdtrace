@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 dtp = new libdtrace.Consumer();
@@ -88,7 +87,7 @@ id = setInterval(function testtick () {
 		if ((val = rec.data) > 5)
 			clearInterval(id);
 
-		sys.puts(sys.inspect(rec));
+		console.log(rec);
 	});
 }, 1000);
 

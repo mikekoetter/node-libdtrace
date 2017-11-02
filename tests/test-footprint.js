@@ -1,5 +1,4 @@
-var sys = require('sys');
-var libdtrace = require('libdtrace');
+var libdtrace = require('../');
 var assert = require('assert');
 
 var tests = [
@@ -37,9 +36,9 @@ setInterval(function () {
 
 		dtp = new libdtrace.Consumer();
 
-		sys.puts(seconds != -1 ? '\n' : '');
-		sys.puts('Testing heap consumption of:\n  ' + test + '\n');
-		sys.puts(pad('SECONDS', 9) + pad('HEAP-USED', 20) +
+		console.log(seconds != -1 ? '\n' : '');
+		console.log('Testing heap consumption of:\n  ' + test + '\n');
+		console.log(pad('SECONDS', 9) + pad('HEAP-USED', 20) +
 		    pad('HEAP-TOTAL', 20));
 		dtp.strcompile(test);
 		dtp.setopt('aggrate', '5000hz');
@@ -54,7 +53,7 @@ setInterval(function () {
 		dumped = seconds;
 		var usage = process.memoryUsage();
 
-		sys.puts(pad(seconds, 9) + pad(usage.heapUsed, 20) +
+		console.log(pad(seconds, 9) + pad(usage.heapUsed, 20) +
 		    pad(usage.heapTotal, 20));
 	}
 
