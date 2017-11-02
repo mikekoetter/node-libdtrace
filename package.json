@@ -12,7 +12,7 @@
             "cross-spawn": "^5.1.0"
         },
         "scripts": {
-            "test" : "./run-tests.sh"
+            "test" : "./run-tests.sh",
             "native_build": "node-gyp rebuild",
             "install": "node install.js"
         }
