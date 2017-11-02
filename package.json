@@ -8,12 +8,12 @@
 	"main":		"./index.js",
         "dependencies": {
             "bindings": "1.0.0",
-            "nan": "^2.6.2"
+            "nan": "^2.6.2",
             "cross-spawn": "^5.1.0"
+        },
+        "scripts": {
+            "test": "echo \"Error: no test specified\" && exit 1",
+            "native_build": "node-gyp rebuild",
+            "install": "node install.js"
         }
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "native_build": "node-gyp rebuild",
-    "install": "node install.js"
-  }
 }
